@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>เสียงจากลูกค้า</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600&family=Mitr:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#E7ECE2;        /* ใบชาเขียวอ่อน */
+    --paper:#FBFCF8;     /* กระดาษ */
+    --ink:#1C2A23;       /* เขียวเข้มเกือบดำ */
+    --muted:#5D6A62;
+    --line:#CBD4C6;
+    --honey:#E9A800;     /* สีดาว */
+    --leaf:#2F6B4F;      /* ปุ่มหลัก */
+    --leaf-dark:#24543E;
+    --plum:#5B3A6B;      /* ส่วน AI */
+    --good:#2F7D4F; --mid:#8A6D12; --bad:#B03A2E;
+    --radius-lg:18px; --radius-sm:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:"Anuphan",system-ui,sans-serif;
+    background:var(--bg); color:var(--ink);
+    line-height:1.65; font-size:16px;
+  }
+  h1,h2,h3{font-family:"Mitr",sans-serif;font-weight:500;line-height:1.3;margin:0}
+  button{font:inherit;cursor:pointer}
+  :focus-visible{outline:3px solid var(--honey);outline-offset:2px}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 64px}
+
+  /* ---------- ส่วนหัว ---------- */
+  header.top{
+    display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;
+    padding-bottom:24px;border-bottom:2px solid var(--ink);margin-bottom:32px;
+  }
+  header.top h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:600;letter-spacing:-.5px}
+  header.top p{margin:6px 0 0;color:var(--muted);max-width:46ch}
+  .score{display:flex;align-items:center;gap:18px}
+  .score-num{font-family:"Mitr";font-size:clamp(3rem,8vw,4.6rem);font-weight:600;line-height:1}
+  .score-meta{display:flex;flex-direction:column;gap:2px}
+  .score-stars{color:var(--honey);font-size:1.4rem;letter-spacing:2px}
+  .score-count{color:var(--muted);font-size:.95rem}
+
+  /* ---------- เลย์เอาต์ ---------- */
+  .layout{display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:32px;align-items:start}
+  @media (max-width:820px){
+    .layout{grid-template-columns:1fr}
+    header.top{grid-template-columns:1fr}
+  }
+  aside.side{position:sticky;top:20px;display:flex;flex-direction:column;gap:24px}
+  @media (max-width:820px){aside.side{position:static}}
+
+  /* ---------- ฟอร์ม (บิลสั่งอาหาร) ---------- */
+  .ticket{
+    background:var(--paper);padding:24px 22px 28px;position:relative;
+    border-radius:var(--radius-sm) var(--radius-sm) 0 0;
+    box-shadow:0 1px 0 var(--line);
+  }
+  .ticket::after{ /* ขอบฟันปลาแบบบิล */
+    content:"";position:absolute;left:0;right:0;bottom:-10px;height:10px;
+    background:
+      linear-gradient(-45deg,transparent 7px,var(--paper) 0) 0 0/14px 10px repeat-x,
+      linear-gradient(45deg,transparent 7px,var(--paper) 0) 0 0/14px 10px repeat-x;
+  }
+  .ticket h2{font-size:1.35rem;margin-bottom:4px}
+  .ticket .hint{color:var(--muted);font-size:.92rem;margin:0 0 18px}
+  .field{margin-bottom:18px}
+  .field label,.field .lbl{display:block;font-weight:600;margin-bottom:6px}
+  .field .opt{font-weight:400;color:var(--muted);font-size:.9rem}
+  .star-input{display:flex;gap:4px;align-items:center}
+  .star-input button{
+    background:none;border:0;padding:2px;font-size:2.1rem;line-height:1;
+    color:var(--line);transition:transform .12s,color .12s;
+  }
+  .star-input button.on{color:var(--honey)}
+  .star-input button:hover{transform:scale(1.12)}
+  .star-caption{margin-left:10px;color:var(--muted);font-size:.95rem;min-width:5em}
+  textarea,input[type=text]{
+    width:100%;font:inherit;color:var(--ink);background:#fff;
+    border:1.5px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px;
+  }
+  textarea{min-height:110px;resize:vertical}
+  textarea:focus,input:focus{border-color:var(--leaf);outline:none;box-shadow:0 0 0 3px rgba(47,107,79,.18)}
+  .counter{text-align:right;font-size:.82rem;color:var(--muted);margin-top:2px}
+  .err{color:var(--bad);font-size:.9rem;margin-top:6px;min-height:1.2em}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    border:0;border-radius:999px;padding:12px 22px;font-weight:600;
+    background:var(--leaf);color:#fff;width:100%;
+  }
+  .btn:hover{background:var(--leaf-dark)}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+
+  /* ---------- ส่วน AI ---------- */
+  .ai-box{background:var(--plum);color:#fff;border-radius:var(--radius-lg);padding:22px}
+  .ai-box h2{font-size:1.2rem}
+  .ai-box p{margin:6px 0 16px;font-size:.93rem;opacity:.85}
+  .btn-ai{background:#fff;color:var(--plum)}
+  .btn-ai:hover{background:#F1E8F5}
+  .spinner{width:16px;height:16px;border:2.5px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .ai-result{
+    margin-top:18px;background:var(--paper);color:var(--ink);
+    border-radius:var(--radius-sm);padding:18px 18px 20px;
+    animation:print .5s ease-out;transform-origin:top;
+  }
+  @keyframes print{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}
+  .ai-result .row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .sentiment{border-radius:999px;padding:3px 14px;font-weight:600;font-size:.9rem;color:#fff}
+  .sentiment.pos{background:var(--good)} .sentiment.neu{background:var(--mid)} .sentiment.neg{background:var(--bad)}
+  .ai-result h3{font-size:1rem;margin:16px 0 6px}
+  .ai-result .sum{margin:10px 0 0}
+  .ai-result ul{margin:0;padding-left:1.2em}
+  .ai-result li{margin-bottom:4px}
+  .ai-result hr{border:0;border-top:1.5px dashed var(--line);margin:14px 0 0}
+  .ai-result .foot{font-size:.82rem;color:var(--muted);margin-top:12px}
+  .ai-error{margin-top:14px;background:rgba(255,255,255,.12);border-radius:var(--radius-sm);padding:12px 14px;font-size:.93rem}
+
+  /* ---------- บอร์ดความคิดเห็น ---------- */
+  .board-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px}
+  .board-head h2{font-size:1.35rem}
+  .live{font-size:.85rem;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .live i{width:8px;height:8px;border-radius:50%;background:var(--good);display:inline-block}
+  .feed{display:flex;flex-direction:column;gap:12px}
+  .card{
+    background:var(--paper);border-radius:var(--radius-sm);padding:16px 18px;
+    border-left:5px solid var(--line);
+  }
+  .card[data-r="5"],.card[data-r="4"]{border-left-color:var(--leaf)}
+  .card[data-r="3"]{border-left-color:var(--honey)}
+  .card[data-r="2"],.card[data-r="1"]{border-left-color:var(--bad)}
+  .card.new{animation:pop .45s ease-out}
+  @keyframes pop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+  .card .stars{color:var(--honey);letter-spacing:1px}
+  .card .stars .off{color:var(--line)}
+  .card .text{margin:6px 0 10px;white-space:pre-wrap;overflow-wrap:anywhere}
+  .card .who{display:flex;justify-content:space-between;gap:10px;font-size:.88rem;color:var(--muted)}
+  .card .who b{color:var(--ink);font-weight:600}
+  .empty{background:var(--paper);border:2px dashed var(--line);border-radius:var(--radius-sm);padding:28px;text-align:center;color:var(--muted)}
+  .more{margin-top:14px;background:transparent;color:var(--ink);border:1.5px solid var(--ink)}
+  .more:hover{background:var(--ink);color:#fff}
+  .banner{background:#FCE9E6;color:var(--bad);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:20px;display:none}
+
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(120px);
+    background:var(--ink);color:#fff;padding:12px 20px;border-radius:999px;
+    transition:transform .3s;z-index:10;font-size:.95rem;
+  }
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1 id="shopName">เสียงจากลูกค้า</h1>
+      <p>ทุกความเห็นช่วยให้เราชงแก้วต่อไปได้ดีขึ้น เขียนได้เลย ไม่ต้องสมัครสมาชิก</p>
+    </div>
+    <div class="score" aria-live="polite">
+      <div class="score-num" id="avgNum">–</div>
+      <div class="score-meta">
+        <div class="score-stars" id="avgStars">☆☆☆☆☆</div>
+        <div class="score-count" id="totalCount">กำลังโหลด…</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="banner" id="banner"></div>
+
+  <div class="layout">
+    <aside class="side">
+
+      <!-- ฟอร์ม -->
+      <form class="ticket" id="form" novalidate>
+        <h2>เขียนความคิดเห็น</h2>
+        <p class="hint">บอกเราว่าวันนี้เป็นอย่างไรบ้าง</p>
+
+        <div class="field">
+          <span class="lbl" id="ratingLbl">ให้คะแนน</span>
+          <div class="star-input" role="radiogroup" aria-labelledby="ratingLbl" id="starInput"></div>
+          <div class="err" id="errRating"></div>
+        </div>
+
+        <div class="field">
+          <label for="comment">ความคิดเห็น</label>
+          <textarea id="comment" maxlength="1000" placeholder="เช่น ลาเต้หอมมาก แต่รอคิวนานไปหน่อย"></textarea>
+          <div class="counter"><span id="cnt">0</span>/1000</div>
+          <div class="err" id="errComment"></div>
+        </div>
+
+        <div class="field">
+          <label for="name">ชื่อ <span class="opt">(ไม่บังคับ)</span></label>
+          <input type="text" id="name" maxlength="50" placeholder="เว้นว่างไว้ได้" autocomplete="nickname">
+        </div>
+
+        <button class="btn" type="submit" id="submitBtn">ส่งความคิดเห็น</button>
+      </form>
+
+      <!-- AI -->
+      <section class="ai-box" aria-labelledby="aiTitle">
+        <h2 id="aiTitle">ให้ AI สรุปรีวิว</h2>
+        <p>อ่านความคิดเห็นล่าสุดสูงสุด 200 รายการ แล้วสรุปภาพรวม จุดเด่น และสิ่งที่ควรปรับ</p>
+        <button class="btn btn-ai" id="aiBtn" type="button">ให้ AI สรุปรีวิว</button>
+        <div id="aiOut" aria-live="polite"></div>
+      </section>
+
+    </aside>
+
+    <!-- บอร์ด -->
+    <main>
+      <div class="board-head">
+        <h2>ความคิดเห็นทั้งหมด</h2>
+        <span class="live" id="liveTag" hidden><i></i>อัปเดตสด</span>
+      </div>
+      <div class="feed" id="feed"></div>
+      <button class="btn more" id="moreBtn" type="button" hidden>ดูความคิดเห็นเก่ากว่านี้</button>
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ===================== ตั้งค่า ===================== */
+const SHOP_NAME = "เสียงจากลูกค้า";   // เปลี่ยนเป็นชื่อร้านได้ เช่น "ร้านกาแฟบ้านสวน"
+const PAGE_SIZE = 30;                 // โหลดการ์ดครั้งละกี่ใบ
+const TABLE = "feedback";
+
+/* ===================== ตัวแปร ===================== */
+let sb = null;
+let rating = 0;
+let items = [];            // ความคิดเห็นที่แสดงอยู่ (ใหม่ → เก่า)
+const seen = new Set();    // กัน id ซ้ำ (ส่งเอง + realtime)
+const $ = id => document.getElementById(id);
+const CAPTIONS = ["", "แย่มาก", "ไม่ค่อยดี", "พอใช้", "ดี", "ยอดเยี่ยม"];
+
+document.title = SHOP_NAME;
+$("shopName").textContent = SHOP_NAME;
+
+/* ===================== ดาวในฟอร์ม ===================== */
+const starBox = $("starInput");
+for (let i = 1; i <= 5; i++) {
+  const b = document.createElement("button");
+  b.type = "button"; b.textContent = "★"; b.dataset.v = i;
+  b.setAttribute("role", "radio");
+  b.setAttribute("aria-label", `${i} ดาว — ${CAPTIONS[i]}`);
+  b.setAttribute("aria-checked", "false");
+  b.addEventListener("click", () => setRating(i));
+  b.addEventListener("mouseenter", () => paintStars(i));
+  starBox.appendChild(b);
+}
+const cap = document.createElement("span");
+cap.className = "star-caption"; cap.id = "starCap";
+starBox.appendChild(cap);
+starBox.addEventListener("mouseleave", () => paintStars(rating));
+starBox.addEventListener("keydown", e => {
+  if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault(); setRating(Math.min(5, rating + 1)); }
+  if (e.key === "ArrowLeft" || e.key === "ArrowDown") { e.preventDefault(); setRating(Math.max(1, rating - 1)); }
+});
+function paintStars(n) {
+  starBox.querySelectorAll("button").forEach(b => b.classList.toggle("on", +b.dataset.v <= n));
+  cap.textContent = CAPTIONS[n] || "";
+}
+function setRating(n) {
+  rating = n;
+  starBox.querySelectorAll("button").forEach(b => b.setAttribute("aria-checked", String(+b.dataset.v === n)));
+  paintStars(n);
+  $("errRating").textContent = "";
+}
+
+$("comment").addEventListener("input", e => {
+  $("cnt").textContent = e.target.value.length;
+  if (e.target.value.trim()) $("errComment").textContent = "";
+});
+
+/* ===================== ตัวช่วย ===================== */
+function starsHTML(n) {
+  let s = "";
+  for (let i = 1; i <= 5; i++) s += i <= n ? "★" : '<span class="off">★</span>';
+  return s;
+}
+function timeAgo(iso) {
+  const sec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (sec < 45) return "เมื่อสักครู่";
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `${Math.max(1, m)} นาทีที่แล้ว`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} ชั่วโมงที่แล้ว`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d} วันที่แล้ว`;
+  if (d < 30) return `${Math.floor(d / 7)} สัปดาห์ที่แล้ว`;
+  if (d < 365) return `${Math.floor(d / 30)} เดือนที่แล้ว`;
+  return `${Math.floor(d / 365)} ปีที่แล้ว`;
+}
+function fullDate(iso) {
+  return new Date(iso).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
+}
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2600);
+}
+function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.style.display = "block"; }
+
+/* ===================== แสดงการ์ด ===================== */
+function makeCard(row, isNew) {
+  const el = document.createElement("article");
+  el.className = "card" + (isNew ? " new" : "");
+  el.dataset.r = row.rating;
+  const stars = document.createElement("div");
+  stars.className = "stars";
+  stars.innerHTML = starsHTML(row.rating);           // เป็นแค่ ★ ที่เราสร้างเอง ปลอดภัย
+  stars.setAttribute("aria-label", `${row.rating} จาก 5 ดาว`);
+  const text = document.createElement("p");
+  text.className = "text";
+  text.textContent = row.comment;                    // ใช้ textContent กัน XSS
+  const who = document.createElement("div");
+  who.className = "who";
+  const name = document.createElement("b");
+  name.textContent = (row.name && row.name.trim()) ? row.name.trim() : "ไม่ระบุชื่อ";
+  const time = document.createElement("time");
+  time.dateTime = row.created_at;
+  time.title = fullDate(row.created_at);
+  time.textContent = timeAgo(row.created_at);
+  who.append(name, time);
+  el.append(stars, text, who);
+  return el;
+}
+function renderEmpty() {
+  const feed = $("feed");
+  if (!items.length) feed.innerHTML = '<div class="empty">ยังไม่มีความคิดเห็น เป็นคนแรกที่เขียนถึงร้านเราได้เลย</div>';
+  else { const e = feed.querySelector(".empty"); if (e) e.remove(); }
+}
+function prepend(row) {
+  if (seen.has(row.id)) return;
+  seen.add(row.id);
+  items.unshift(row);
+  renderEmpty();
+  $("feed").prepend(makeCard(row, true));
+}
+function refreshTimes() {
+  document.querySelectorAll(".card time").forEach(t => t.textContent = timeAgo(t.dateTime));
+}
+
+/* ===================== ข้อมูลจาก Supabase ===================== */
+async function loadStats() {
+  const { data, error } = await sb.rpc("feedback_stats");
+  if (error) { console.error(error); return; }
+  const row = Array.isArray(data) ? data[0] : data;
+  const total = Number(row?.total || 0);
+  const avg = Number(row?.avg_rating || 0);
+  $("avgNum").textContent = total ? avg.toFixed(1) : "–";
+  const full = Math.round(avg);
+  $("avgStars").textContent = "★".repeat(full) + "☆".repeat(5 - full);
+  $("avgStars").setAttribute("aria-label", `คะแนนเฉลี่ย ${avg.toFixed(1)} จาก 5`);
+  $("totalCount").textContent = total ? `จาก ${total.toLocaleString("th-TH")} ความคิดเห็น` : "ยังไม่มีความคิดเห็น";
+}
+
+async function loadPage() {
+  let q = sb.from(TABLE).select("id,rating,comment,name,created_at")
+    .order("created_at", { ascending: false }).order("id", { ascending: false })
+    .limit(PAGE_SIZE);
+  const oldest = items[items.length - 1];
+  if (oldest) q = q.lt("created_at", oldest.created_at);
+  const { data, error } = await q;
+  if (error) { showBanner("โหลดความคิดเห็นไม่สำเร็จ: " + error.message); return; }
+  const feed = $("feed");
+  data.forEach(row => {
+    if (seen.has(row.id)) return;
+    seen.add(row.id); items.push(row);
+    feed.appendChild(makeCard(row, false));
+  });
+  renderEmpty();
+  $("moreBtn").hidden = data.length < PAGE_SIZE;
+}
+
+function subscribe() {
+  sb.channel("feedback-live")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: TABLE }, payload => {
+      prepend(payload.new);
+      loadStats();
+    })
+    .subscribe(status => { $("liveTag").hidden = status !== "SUBSCRIBED"; });
+}
+
+/* ===================== ส่งความคิดเห็น ===================== */
+$("form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const comment = $("comment").value.trim();
+  const name = $("name").value.trim();
+  let ok = true;
+  if (!rating) { $("errRating").textContent = "กรุณาเลือกจำนวนดาว"; ok = false; }
+  if (!comment) { $("errComment").textContent = "กรุณาเขียนความคิดเห็นก่อนส่ง"; ok = false; }
+  if (!ok) return;
+  if (!sb) { toast("ยังเชื่อมต่อฐานข้อมูลไม่ได้"); return; }
+
+  const btn = $("submitBtn");
+  btn.disabled = true; btn.textContent = "กำลังส่ง…";
+  const { data, error } = await sb.from(TABLE)
+    .insert({ rating, comment, name: name || null })
+    .select("id,rating,comment,name,created_at").single();
+  btn.disabled = false; btn.textContent = "ส่งความคิดเห็น";
+
+  if (error) { toast("ส่งไม่สำเร็จ: " + error.message); return; }
+  prepend(data);
+  loadStats();
+  $("form").reset(); $("cnt").textContent = "0"; setRating(0);
+  toast("ส่งความคิดเห็นแล้ว ขอบคุณมากครับ/ค่ะ");
+});
+
+$("moreBtn").addEventListener("click", async () => {
+  const b = $("moreBtn"); b.disabled = true;
+  await loadPage();
+  b.disabled = false;
+});
+
+/* ===================== AI สรุปรีวิว ===================== */
+$("aiBtn").addEventListener("click", async () => {
+  const btn = $("aiBtn"), out = $("aiOut");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" aria-hidden="true"></span> AI กำลังอ่านรีวิว…';
+  out.innerHTML = "";
+  try {
+    const res = await fetch("/api/summarize", { method: "POST" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || `เซิร์ฟเวอร์ตอบกลับ ${res.status}`);
+    renderAI(json);
+  } catch (err) {
+    const box = document.createElement("div");
+    box.className = "ai-error";
+    box.textContent = "สรุปไม่สำเร็จ: " + err.message;
+    out.appendChild(box);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "ให้ AI สรุปรีวิวอีกครั้ง";
+  }
+});
+
+function renderAI(r) {
+  const cls = { "บวก": "pos", "กลาง": "neu", "ลบ": "neg" }[r.sentiment] || "neu";
+  const card = document.createElement("div");
+  card.className = "ai-result";
+  const list = arr => {
+    const ul = document.createElement("ul");
+    (arr || []).forEach(t => { const li = document.createElement("li"); li.textContent = t; ul.appendChild(li); });
+    return ul;
+  };
+  const row = document.createElement("div"); row.className = "row";
+  const h = document.createElement("h3"); h.style.margin = "0"; h.textContent = "ภาพรวม";
+  const badge = document.createElement("span"); badge.className = "sentiment " + cls;
+  badge.textContent = "Sentiment: " + (r.sentiment || "กลาง");
+  row.append(h, badge);
+
+  const sum = document.createElement("p"); sum.className = "sum"; sum.textContent = r.summary;
+  const h1 = document.createElement("h3"); h1.textContent = "จุดเด่น";
+  const h2 = document.createElement("h3"); h2.textContent = "จุดที่ควรปรับ";
+  const hr = document.createElement("hr");
+  const foot = document.createElement("div"); foot.className = "foot";
+  foot.textContent = `วิเคราะห์จาก ${r.count} ความคิดเห็นล่าสุด (คะแนนเฉลี่ยชุดนี้ ${r.average}) เมื่อ ${fullDate(r.generated_at)}`;
+
+  card.append(row, sum, h1, list(r.strengths), h2, list(r.improvements), hr, foot);
+  $("aiOut").appendChild(card);
+}
+
+/* ===================== เริ่มต้น ===================== */
+(async function init() {
+  try {
+    const res = await fetch("/api/config");
+    if (!res.ok) throw new Error();
+    const cfg = await res.json();
+    if (!cfg.supabaseUrl || !cfg.supabaseKey) throw new Error();
+    sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+  } catch {
+    showBanner("เชื่อมต่อฐานข้อมูลไม่ได้ ตรวจสอบว่าตั้งค่า SUPABASE_URL และ SUPABASE_ANON_KEY ใน Netlify แล้ว และเปิดหน้านี้ผ่านเว็บ Netlify (ไม่ใช่เปิดไฟล์ตรงจากเครื่อง)");
+    $("totalCount").textContent = "ไม่มีข้อมูล";
+    return;
+  }
+  await Promise.all([loadStats(), loadPage()]);
+  subscribe();
+  setInterval(refreshTimes, 30000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# ไม่มีขั้นตอน build — เว็บเป็นไฟล์ HTML ธรรมดา
+[build]
+  publish = "."
+  functions = "netlify/functions"
